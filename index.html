@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MPH Calculator</title>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+
+    <span class="pln">
+    </span><link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic"><span class="pln">
+    </span><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.css"><span class="pln">
+    </span><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/milligram/1.4.1/milligram.css"><span class="pln">
+    </span>
+	
+</head>
+<body>
+
+<div class="container" x-data="mphCalculator()" x-init="loadOutputs()">
+    <h1>Miles Per Hour Calculator</h1>
+
+    <label for="name">Setup Name:</label>
+    <input type="text" id="name" x-model="calcName" placeholder="Enter a name for this setup" />
+
+    <label for="gears">Number of Gears:</label>
+    <input type="number" id="gears" x-model.number="numGears" min="1" @input="updateGears()" />
+
+    <div>
+        <template x-for="(gear, index) in Array.from({ length: numGears })" :key="index">
+            <div>
+                <label :for="'gearRatio' + (index + 1)">Ratio for Gear <span x-text="index + 1"></span>:</label>
+                <input type="number" :id="'gearRatio' + (index + 1)" x-model.number="gearRatios[index]" step="0.01" />
+            </div>
+        </template>
+    </div>
+
+    <label for="finalDrive">Final Drive Ratio:</label>
+    <input type="number" id="finalDrive" x-model.number="finalDrive" step="0.01" />
+
+    <label for="tireDiameter">Tire Diameter (inches):</label>
+    <input type="number" id="tireDiameter" x-model.number="tireDiameter" step="0.01" />
+
+    <label for="rpm">RPM:</label>
+    <input type="number" id="rpm" x-model.number="rpm" />
+
+    <button @click="calculateMPH">Calculate MPH</button>
+    <button @click="saveOutput" x-show="mphArray.length > 0">Save Output</button>
+
+    <h2 x-show="mphArray.length > 0">Calculated MPH:</h2>
+    <ul>
+        <template x-for="(mphValue, index) in mphArray" :key="index">
+            <li>Gear <span x-text="index + 1"></span>: <span x-text="mphValue.toFixed(2)"></span> MPH</li>
+        </template>
+    </ul>
+
+    <h2>Saved Outputs:</h2>
+    <ul>
+        <template x-for="(savedOutput, index) in savedOutputs" :key="index">
+            <li>
+                <span x-text="savedOutput.name"></span> - 
+                <button @click="editOutput(savedOutput.name)">Edit</button>
+                <button @click="deleteOutput(savedOutput.name)">Delete</button>
+            </li>
+        </template>
+    </ul>
+</div>
+
+<script>
+    function mphCalculator() {
+        return {
+            calcName: '', // Name for the calculation
+            numGears: 6,
+            gearRatios: [4,3.5,2.5,1.5,1,0.8], // Default gear ratio
+            finalDrive: 4,
+            tireDiameter: 25,
+            rpm: 7000,
+            mphArray: [], // Array to hold MPH values for each gear
+            savedOutputs: [], // Array to hold saved outputs
+
+            updateGears() {
+                // Update gearRatios array to match the number of gears
+                this.gearRatios = Array.from({ length: this.numGears }, (_, i) => this.gearRatios[i] || 3.5);
+            },
+
+            calculateMPH() {
+                this.mphArray = []; // Reset MPH array
+                if (this.rpm > 0 && this.finalDrive > 0 && this.tireDiameter > 0 && this.numGears > 0) {
+                    const tireCircumference = Math.PI * this.tireDiameter; // Circumference in inches
+                    for (let i = 0; i < this.numGears; i++) {
+                        const gearRatio = this.gearRatios[i] || 1; // Get the gear ratio for the current gear
+                        // Calculate MPH using the correct formula
+                        const mph = (this.rpm * tireCircumference * 60) / (this.finalDrive * 12 * 5280); // Convert inches to miles
+                        this.mphArray.push(mph / gearRatio); // Apply gear ratio and add to the array
+                    }
+                } else {
+                    this.mphArray = []; // Reset if inputs are invalid
+                }
+            },
+
+            saveOutput() {
+                const output = {
+                    name: this.calcName,
+                    numGears: this.numGears,
+                    gearRatios: [...this.gearRatios],
+                    finalDrive: this.finalDrive,
+                    tireDiameter: this.tireDiameter,
+                    rpm: this.rpm,
+                    mphArray: this.mphArray
+                };
+
+                // Check if an entry with the same name exists and update it
+                const existingIndex = this.savedOutputs.findIndex(item => item.name === this.calcName);
+                if (existingIndex > -1) {
+                    this.savedOutputs[existingIndex] = output; // Update existing entry
+                } else {
+                    this.savedOutputs.push(output); // Add new entry
+                }
+                localStorage.setItem('mphOutputs', JSON.stringify(this.savedOutputs)); // Save to local storage
+            },
+
+            loadOutputs() {
+                const saved = localStorage.getItem('mphOutputs');
+                if (saved) {
+                    this.savedOutputs = JSON.parse(saved); // Load saved outputs
+                }
+            },
+
+            editOutput(name) {
+                const output = this.savedOutputs.find(item => item.name === name);
+                if (output) {
+                    this.calcName = output.name; // Set the calculation name
+                    this.numGears = output.numGears; // Set the number of gears
+                    this.gearRatios = [...output.gearRatios]; // Set the gear ratios
+                    this.finalDrive = output.finalDrive; // Set the final drive
+                    this.tireDiameter = output.tireDiameter; // Set the tire diameter
+                    this.rpm = output.rpm; // Set the RPM
+                    this.calculateMPH(); // Recalculate MPH based on loaded values
+                }
+            },
+
+            deleteOutput(name) {
+                this.savedOutputs = this.savedOutputs.filter(item => item.name !== name); // Remove entry
+                localStorage.setItem('mphOutputs', JSON.stringify(this.savedOutputs)); // Update local storage
+            }
+        };
+    }
+</script>
+
+</body>
+</html>
